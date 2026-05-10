@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AdForge — Autonomous Generative Advertising</title>
+<style>
+:root{
+  --bg:#07070f;--bg2:#0c0c1a;--card:#111120;--card2:#161628;
+  --border:#1e1e3a;--border2:#2a2a4a;
+  --gold:#f59e0b;--gold2:#fbbf24;--gold-dim:rgba(245,158,11,.12);--gold-glow:rgba(245,158,11,.25);
+  --em:#10b981;--em-dim:rgba(16,185,129,.12);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.12);
+  --blue:#3b82f6;--pur:#8b5cf6;--ora:#f97316;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#4b5563;
+  --font:"Inter",system-ui,sans-serif;--mono:"JetBrains Mono","Fira Code",monospace;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ─── HEADER ─── */
+header{
+  background:linear-gradient(135deg,#08081a,#100920);
+  border-bottom:1px solid var(--border);
+  padding:0 1.5rem;height:58px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:200;
+}
+.logo{display:flex;align-items:center;gap:10px;font-size:1.15rem;font-weight:800;letter-spacing:-.02em;}
+.logo-mark{
+  width:34px;height:34px;border-radius:8px;
+  background:linear-gradient(135deg,var(--gold),#e07b05);
+  display:flex;align-items:center;justify-content:center;font-size:17px;
+  box-shadow:0 4px 12px rgba(245,158,11,.3);
+}
+.logo span{color:var(--gold);}
+.hdr-right{display:flex;gap:8px;align-items:center;}
+.pill{padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+.pill-pur{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);color:#a78bfa;}
+.pill-em{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#34d399;}
+.session-id{font-family:var(--mono);font-size:.68rem;color:var(--text3);padding:3px 8px;background:var(--card);border:1px solid var(--border);border-radius:6px;display:none;}
+
+/* ─── LAYOUT ─── */
+.app{display:grid;grid-template-columns:370px 1fr;min-height:calc(100vh - 58px);}
+
+/* ─── LEFT ─── */
+.sidebar{
+  background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;max-height:calc(100vh - 58px);
+}
+.sb-section{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);}
+.sb-title{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.9rem;}
+
+/* Hero */
+.hero{padding:1.5rem;background:linear-gradient(135deg,rgba(245,158,11,.06),transparent 70%);border-bottom:1px solid var(--border);}
+.hero h1{font-size:1.35rem;font-weight:800;letter-spacing:-.03em;
+  background:linear-gradient(135deg,var(--gold2),var(--ora),#ec4899);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:5px;}
+.hero p{font-size:.78rem;color:var(--text2);line-height:1.55;}
+.hero-stats{display:flex;gap:12px;margin-top:10px;}
+.hstat{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:.7rem;text-align:center;}
+.hstat strong{display:block;font-size:.85rem;color:var(--gold);font-weight:700;}
+
+/* Form */
+.form-g{margin-bottom:1.1rem;}
+label{display:block;font-size:.75rem;font-weight:600;color:var(--text2);margin-bottom:5px;}
+textarea,select{
+  width:100%;background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);
+  color:var(--text);font-family:var(--font);font-size:.83rem;transition:border-color .2s,box-shadow .2s;
+}
+textarea:focus,select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-dim);}
+textarea{padding:9px 12px;resize:vertical;min-height:90px;line-height:1.5;}
+select{padding:9px 32px 9px 12px;appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;}
+
+/* Model select dropdowns */
+.model-select-wrap select{
+  width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius);
+  background:var(--card);color:var(--text);font-size:.78rem;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+  padding-right:28px;transition:border-color .2s;
+}
+.model-select-wrap select:focus{outline:none;border-color:var(--gold);}
+.model-select-wrap select option,.model-select-wrap select optgroup{
+  background:#1a1a2e;color:var(--text);
+}
+
+/* Slider */
+.slider-row{display:flex;align-items:center;gap:10px;}
+input[type=range]{-webkit-appearance:none;height:3px;background:var(--border2);border-radius:2px;flex:1;border:none;padding:0;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gold);cursor:pointer;}
+.sv{font-size:.82rem;font-weight:700;color:var(--gold);min-width:38px;text-align:right;}
+
+/* Upload */
+.upload-wrap{position:relative;border:2px dashed var(--border2);border-radius:var(--radius);padding:1.2rem;text-align:center;cursor:pointer;transition:all .2s;overflow:hidden;}
+.upload-wrap:hover,.upload-wrap.has-img{border-color:var(--gold);border-style:solid;}
+.upload-wrap.has-img{background:var(--gold-dim);}
+.upload-wrap input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+#up-preview{max-width:100%;max-height:80px;border-radius:6px;object-fit:cover;display:none;margin:0 auto;}
+.up-ico{font-size:1.8rem;margin-bottom:6px;display:block;}
+.up-txt{font-size:.75rem;color:var(--text2);}
+.up-btn{display:inline-block;margin-top:6px;padding:4px 10px;border:1px solid var(--border2);border-radius:6px;font-size:.68rem;color:var(--text3);cursor:pointer;}
+#up-clear{display:none;position:absolute;top:6px;right:6px;background:var(--red-dim);border:1px solid var(--red);color:var(--red);border-radius:6px;padding:2px 8px;font-size:.68rem;cursor:pointer;z-index:10;}
+
+/* Gen button */
+.gen-btn{
+  width:100%;padding:13px;border:none;border-radius:var(--radius);cursor:pointer;
+  background:linear-gradient(135deg,var(--gold),#e07b05);
+  color:#050505;font-size:.9rem;font-weight:800;letter-spacing:.01em;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;
+}
+.gen-btn:hover{transform:translateY(-1px);box-shadow:0 8px 28px var(--gold-glow);}
+.gen-btn:active{transform:none;}
+.gen-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none;}
+
+/* Cost */
+.cost-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem;}
+.cost-row{display:flex;justify-content:space-between;padding:3px 0;font-size:.76rem;color:var(--text2);}
+.cost-val{font-weight:700;color:var(--text);}
+.cost-divider{border-top:1px solid var(--border);margin:6px 0;padding-top:6px;}
+.cost-divider .cost-val{color:var(--gold);font-size:.88rem;}
+.live-cost{margin-top:4px;}
+.live-cost .cost-val{color:var(--em);}
+
+/* Pipeline stages */
+.stages{padding:1.1rem 1.5rem 1.5rem;}
+.stage-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;position:relative;}
+.stage-item:not(:last-child)::after{content:'';position:absolute;left:12px;top:34px;bottom:-8px;width:1px;background:var(--border);}
+.stage-dot{
+  width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);
+  background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:700;color:var(--text3);transition:all .3s;position:relative;z-index:1;
+}
+.stage-dot.running{border-color:var(--gold);background:var(--gold-dim);color:var(--gold);animation:pdot 1.5s infinite;}
+.stage-dot.complete{border-color:var(--em);background:var(--em-dim);color:var(--em);}
+.stage-dot.error{border-color:var(--red);background:var(--red-dim);color:var(--red);}
+@keyframes pdot{0%,100%{box-shadow:0 0 0 0 var(--gold-glow);}50%{box-shadow:0 0 0 5px rgba(245,158,11,0);}}
+.stage-info{flex:1;min-width:0;}
+.stage-name{font-size:.76rem;font-weight:600;color:var(--text2);transition:color .2s;}
+.stage-name.running{color:var(--gold);}
+.stage-name.complete{color:var(--text);}
+.stage-name.error{color:var(--red);}
+.stage-sub{font-size:.67rem;color:var(--text3);margin-top:1px;}
+.stage-time{font-size:.65rem;color:var(--text3);font-family:var(--mono);margin-top:2px;display:none;}
+.stage-time.show{display:block;color:var(--em);}
+
+/* ─── RIGHT PANEL ─── */
+.main-panel{display:flex;flex-direction:column;overflow:hidden;}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);padding:0 1.5rem;gap:2px;}
+.tab{
+  padding:13px 14px;font-size:.75rem;font-weight:600;color:var(--text3);
+  cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.tab:hover{color:var(--text2);}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.tbadge{background:var(--gold-dim);color:var(--gold);border-radius:10px;padding:1px 6px;font-size:.6rem;font-weight:700;}
+.tab-panel{display:none;flex:1;overflow:auto;}
+.tab-panel.active{display:flex;flex-direction:column;}
+
+/* ─── LOG PANEL ─── */
+#log-panel{padding:1rem 1.5rem;font-family:var(--mono);font-size:.75rem;line-height:1.65;}
+.log-entry{display:flex;gap:8px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.02);animation:fin .15s ease;}
+@keyframes fin{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+.log-time{color:var(--text3);min-width:58px;font-size:.68rem;}
+.log-stage{min-width:28px;padding:0 5px;border-radius:4px;font-size:.65rem;font-weight:700;text-align:center;background:var(--card2);color:var(--text3);}
+.s1{background:rgba(59,130,246,.12);color:#60a5fa;}
+.s2{background:rgba(139,92,246,.12);color:#a78bfa;}
+.s3{background:rgba(245,158,11,.12);color:#fbbf24;}
+.s4{background:rgba(16,185,129,.12);color:#34d399;}
+.s5{background:rgba(239,68,68,.12);color:#f87171;}
+.s6{background:rgba(236,72,153,.12);color:#f472b6;}
+.s7{background:rgba(249,115,22,.12);color:#fb923c;}
+.s8{background:rgba(6,182,212,.12);color:#22d3ee;}
+.s9{background:rgba(168,85,247,.12);color:#c084fc;}
+.sys{background:rgba(148,163,184,.1);color:#94a3b8;}
+.log-msg{flex:1;word-break:break-word;}
+.log-msg.info{color:var(--text2);}
+.log-msg.success{color:var(--em);}
+.log-msg.warning{color:#fbbf24;}
+.log-msg.error{color:var(--red);}
+
+/* ─── FRAMES PANEL ─── */
+#frames-panel{padding:1.5rem;}
+.frames-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;}
+.frame-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .2s;}
+.frame-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4);}
+.frame-wrap{aspect-ratio:16/9;background:var(--card2);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.frame-wrap.portrait{aspect-ratio:9/16;}
+.frame-wrap.square{aspect-ratio:1;}
+.frame-wrap img{width:100%;height:100%;object-fit:cover;transition:transform .3s;}
+.frame-card:hover .frame-wrap img{transform:scale(1.04);}
+.frame-ph{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text3);font-size:.72rem;}
+.fspin{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.fov{position:absolute;top:6px;right:6px;display:flex;gap:4px;}
+.fbadge{padding:2px 7px;border-radius:8px;font-size:.6rem;font-weight:700;backdrop-filter:blur(8px);}
+.fb-ver{background:rgba(16,185,129,.9);color:#fff;}
+.fb-gen{background:rgba(59,130,246,.85);color:#fff;}
+.fb-fail{background:rgba(239,68,68,.85);color:#fff;}
+.fb-pend{background:rgba(30,30,58,.85);color:var(--text3);}
+.finfo{padding:9px 11px;}
+.fid{font-size:.68rem;font-weight:700;color:var(--gold);font-family:var(--mono);}
+.ffunc{font-size:.69rem;color:var(--text2);margin-top:2px;line-height:1.3;}
+.fdur{font-size:.65rem;color:var(--text3);margin-top:2px;}
+
+/* ─── VIDEO PANEL ─── */
+#video-panel{padding:1.5rem;}
+.clips-header{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:1rem;}
+.clips-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:2rem;}
+.clip-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.clip-card video{width:100%;display:block;background:#000;max-height:160px;object-fit:cover;}
+.clip-info{padding:9px 12px;display:flex;justify-content:space-between;align-items:center;}
+.clip-id{font-size:.68rem;font-weight:700;color:var(--gold);font-family:var(--mono);}
+.clip-dur{font-size:.68rem;color:var(--text3);}
+.clip-dl{color:var(--text3);font-size:.7rem;text-decoration:none;padding:3px 8px;border:1px solid var(--border2);border-radius:6px;transition:all .2s;}
+.clip-dl:hover{border-color:var(--gold);color:var(--gold);}
+.final-section{background:var(--card);border:1px solid var(--gold);border-radius:14px;overflow:hidden;margin-top:1rem;}
+.final-hdr{padding:1rem 1.5rem;background:linear-gradient(90deg,var(--gold-dim),transparent);display:flex;align-items:center;justify-content:space-between;}
+.final-title{font-weight:800;color:var(--gold);font-size:.88rem;display:flex;align-items:center;gap:8px;}
+.final-section video{width:100%;display:block;background:#000;max-height:480px;}
+.final-meta{padding:10px 20px;display:flex;gap:20px;font-size:.75rem;color:var(--text3);border-top:1px solid var(--border);}
+.dl-btn{padding:7px 16px;background:var(--gold);color:#0a0a0a;border:none;border-radius:8px;font-size:.78rem;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .2s;}
+.dl-btn:hover{background:var(--gold2);transform:translateY(-1px);}
+
+/* ─── AUDIO ─── */
+.audio-section{background:var(--card);border:1px solid rgba(168,85,247,.4);border-radius:14px;overflow:hidden;margin-top:1rem;padding:1.25rem 1.5rem;}
+.audio-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+.audio-title{font-size:.88rem;font-weight:800;color:#c084fc;display:flex;align-items:center;gap:8px;}
+.audio-meta{display:flex;gap:16px;font-size:.72rem;color:var(--text3);margin-top:.75rem;}
+audio{width:100%;border-radius:8px;outline:none;}
+audio::-webkit-media-controls-panel{background:var(--card2);}
+.script-box{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-top:.8rem;font-size:.78rem;color:var(--text2);line-height:1.7;font-style:italic;white-space:pre-wrap;}
+.script-label{font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:.4rem;}
+
+/* ─── STORYBOARD PANEL ─── */
+#story-panel{padding:1.5rem;}
+.story-tbl{width:100%;border-collapse:collapse;font-size:.78rem;}
+.story-tbl th{text-align:left;padding:8px 12px;font-size:.65rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);}
+.story-tbl td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text2);vertical-align:top;}
+.story-tbl tr:hover td{background:var(--card2);}
+.shot-id{font-family:var(--mono);color:var(--gold);font-weight:700;font-size:.72rem;}
+.spill{display:inline-block;padding:2px 8px;border-radius:8px;font-size:.62rem;font-weight:700;}
+.sp-pending{background:var(--card2);color:var(--text3);}
+.sp-generating{background:rgba(245,158,11,.15);color:var(--gold);}
+.sp-verified,.sp-complete{background:var(--em-dim);color:var(--em);}
+.sp-generated{background:rgba(59,130,246,.15);color:#60a5fa;}
+.sp-failed{background:var(--red-dim);color:var(--red);}
+.prompt-preview{font-size:.68rem;color:var(--text3);margin-top:4px;line-height:1.4;font-style:italic;}
+
+/* ─── BRIEF PANEL ─── */
+#brief-panel{padding:1.5rem;}
+.brief-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
+.brief-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem;}
+.brief-label{font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
+.brief-val{font-size:.8rem;color:var(--text);line-height:1.5;}
+.brief-list{list-style:none;padding:0;}
+.brief-list li{font-size:.78rem;color:var(--text2);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.brief-list li:last-child{border-bottom:none;}
+.brief-list li::before{content:"• ";color:var(--gold);}
+
+/* ─── EMPTY STATE ─── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem 2rem;text-align:center;color:var(--text3);gap:10px;min-height:260px;}
+.empty-ico{font-size:2.5rem;opacity:.35;}
+.empty-ttl{font-size:.85rem;font-weight:700;color:var(--text2);}
+.empty-sub{font-size:.76rem;max-width:280px;line-height:1.5;}
+
+/* ─── PROGRESS BAR ─── */
+.pipeline-progress{padding:10px 1.5rem;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;gap:3px;align-items:center;}
+.pp-seg{flex:1;height:2px;background:var(--border2);border-radius:1px;transition:background .4s;}
+.pp-seg.done{background:var(--em);}
+.pp-seg.active{background:var(--gold);animation:shimmer 1.5s infinite;}
+.pp-seg.err{background:var(--red);}
+@keyframes shimmer{0%,100%{opacity:1;}50%{opacity:.4;}}
+.pp-label{font-size:.65rem;color:var(--text3);font-family:var(--mono);min-width:60px;text-align:right;}
+
+/* ─── LIGHTBOX ─── */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:pointer;animation:fin .2s ease;}
+.lightbox img{max-width:92%;max-height:92%;border-radius:10px;box-shadow:0 0 60px rgba(0,0,0,.8);}
+
+/* ─── TOAST ─── */
+#toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:.8rem;max-width:300px;z-index:1000;box-shadow:0 16px 40px rgba(0,0,0,.5);transform:translateY(16px);opacity:0;transition:all .3s;display:flex;align-items:center;gap:8px;}
+#toast.show{transform:none;opacity:1;}
+#toast.success{border-color:var(--em);}
+#toast.error{border-color:var(--red);}
+#toast.warning{border-color:var(--gold);}
+
+/* ─── CANCEL BTN ─── */
+.cancel-btn{display:none;width:100%;padding:9px;border:1px solid var(--red);border-radius:var(--radius);background:var(--red-dim);color:var(--red);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;}
+.cancel-btn:hover{background:rgba(239,68,68,.2);}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:860px){.app{grid-template-columns:1fr;}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border);}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">🎬</div>
+    Ad<span>Forge</span>
+  </div>
+  <div class="hdr-right">
+    <span class="session-id" id="session-id-badge"></span>
+    <span class="pill pill-pur">RunwayML Gen-4.5</span>
+    <span class="pill pill-em">GPT-4o</span>
+  </div>
+</header>
+
+<div class="app">
+
+<!-- ════════════════════ SIDEBAR ════════════════════ -->
+<div class="sidebar">
+
+  <div class="hero">
+    <h1>Generative Ad Pipeline</h1>
+    <p>7-stage autonomous multi-agent system for broadcast-quality commercial video synthesis.</p>
+    <div class="hero-stats">
+      <div class="hstat"><strong id="stat-shots">—</strong>Shots</div>
+      <div class="hstat"><strong id="stat-dur">—</strong>Runtime</div>
+      <div class="hstat"><strong id="stat-cost">—</strong>Est. Cost</div>
+    </div>
+  </div>
+
+  <!-- Campaign Brief -->
+  <div class="sb-section">
+    <div class="sb-title">Campaign Brief</div>
+
+    <div class="form-g">
+      <label>Advertising Concept *</label>
+      <textarea id="prompt" rows="4" placeholder="Describe your product, target audience, emotional tone, and campaign goal...
+
+Example: A luxury cold brew coffee brand targeting urban millennials aged 25-35. Emphasise the 24-hour slow-brew process, sustainably sourced beans, and artisan craft. CTA: 'Slow is Bold.'"></textarea>
+    </div>
+
+    <div class="form-g">
+      <label>Reference Image <span style="color:var(--text3);font-weight:400">(optional)</span></label>
+      <div class="upload-wrap" id="upload-wrap">
+        <input type="file" id="img-input" accept="image/*">
+        <span id="up-clear" onclick="clearImage(event)">Remove</span>
+        <div id="up-content">
+          <span class="up-ico">🖼️</span>
+          <div class="up-txt">Drop product image or <span class="up-btn">browse</span></div>
+          <div style="font-size:.65rem;color:var(--text3);margin-top:4px">PNG, JPG, WEBP — max 10MB</div>
+        </div>
+        <img id="up-preview" src="" alt="">
+      </div>
+    </div>
+
+    <div class="form-g">
+      <label>Target Platform</label>
+      <select id="platform" onchange="updateCost()">
+        <option value="youtube">YouTube  (1280×720 · 16:9)</option>
+        <option value="tiktok">TikTok   (720×1280 · 9:16)</option>
+        <option value="instagram_reels">Instagram Reels  (720×1280 · 9:16)</option>
+        <option value="linkedin">LinkedIn  (1280×720 · 16:9)</option>
+        <option value="twitter">Twitter / X  (1280×720 · 16:9)</option>
+      </select>
+    </div>
+
+    <div class="form-g">
+      <label>Ad Duration</label>
+      <div class="slider-row">
+        <input type="range" id="duration" min="10" max="60" step="5" value="30" oninput="onDurChange(this.value)">
+        <div class="sv"><span id="dur-val">30</span>s</div>
+      </div>
+    </div>
+
+    <div class="form-g">
+      <label>Video Model</label>
+      <div class="model-select-wrap">
+        <select id="video-model-sel" onchange="onModelChange()">
+          <optgroup label="RunwayML">
+            <option value="gen4_turbo"  selected>⚡ Gen4 Turbo — $0.05/s  (fast, image-driven)</option>
+            <option value="gen4.5"             >🎬 Gen4.5 — $0.12/s  (high quality)</option>
+            <option value="seedance2"          >🎭 Seedance 2 — $0.36/s  (up to 15s, reference video)</option>
+          </optgroup>
+          <optgroup label="Google (via RunwayML)">
+            <option value="veo3.1_fast"        >🚀 Veo 3.1 Fast — $0.12/s  (4/6/8s)</option>
+            <option value="veo3.1"             >🌟 Veo 3.1 — $0.30/s  (4/6/8s, high quality)</option>
+            <option value="veo3"               >✨ Veo 3 — $0.40/s  (8s only, premium)</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-g">
+      <label>Image Model</label>
+      <div class="model-select-wrap">
+        <select id="image-model-sel" onchange="onModelChange()">
+          <optgroup label="RunwayML">
+            <option value="gen4_image"  selected>🎨 Gen4 Image — $0.06/frame  (best quality)</option>
+            <option value="gen4_image_turbo"   >⚡ Gen4 Image Turbo — $0.02/frame  (fast)</option>
+          </optgroup>
+          <optgroup label="Google (via RunwayML)">
+            <option value="gemini_2.5_flash"   >🌐 Gemini 2.5 Flash — $0.05/frame</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cost Estimate -->
+  <div class="sb-section">
+    <div class="sb-title">Cost Estimate</div>
+    <div class="cost-card">
+      <div class="cost-row"><span>Image frames</span><span class="cost-val" id="ec-img">—</span></div>
+      <div class="cost-row"><span>Video synthesis</span><span class="cost-val" id="ec-vid">—</span></div>
+      <div class="cost-row cost-divider"><span style="font-weight:700;color:var(--text)">Total estimate</span><span class="cost-val" id="ec-total">—</span></div>
+      <div class="cost-row live-cost"><span>Live spend</span><span class="cost-val" id="ec-live">$0.00</span></div>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="sb-section">
+    <button class="gen-btn" id="gen-btn" onclick="startPipeline()">
+      <span id="btn-ico">🚀</span> <span id="btn-txt">Generate Ad Campaign</span>
+    </button>
+    <div style="height:8px"></div>
+    <button class="cancel-btn" id="cancel-btn" onclick="cancelPipeline()">Stop Pipeline</button>
+  </div>
+
+  <!-- Pipeline Stages -->
+  <div class="sb-section" style="border-bottom:none;padding-bottom:0;">
+    <div class="sb-title">Pipeline Progress</div>
+  </div>
+  <div class="stages" id="stages-list">
+    <div id="si-1"  class="stage-item"><div class="stage-dot" id="sd-1">1</div><div class="stage-info"><div class="stage-name" id="sn-1">Intent Ingestion</div><div class="stage-sub">Parse concept, normalize inputs</div><div class="stage-time" id="st-1"></div></div></div>
+    <div id="si-2"  class="stage-item"><div class="stage-dot" id="sd-2">2</div><div class="stage-info"><div class="stage-name" id="sn-2">Contextual Enhancement</div><div class="stage-sub">Platform specs, trends, demographics</div><div class="stage-time" id="st-2"></div></div></div>
+    <div id="si-3"  class="stage-item"><div class="stage-dot" id="sd-3">3</div><div class="stage-info"><div class="stage-name" id="sn-3">Narrative Sequencing</div><div class="stage-sub">Shot-by-shot storyboard creation</div><div class="stage-time" id="st-3"></div></div></div>
+    <div id="si-4"  class="stage-item"><div class="stage-dot" id="sd-4">4</div><div class="stage-info"><div class="stage-name" id="sn-4">Prompt Engineering</div><div class="stage-sub">Cinematic prompts + camera choreography</div><div class="stage-time" id="st-4"></div></div></div>
+    <div id="si-5"  class="stage-item"><div class="stage-dot" id="sd-5">5</div><div class="stage-info"><div class="stage-name" id="sn-5">Structural Validation</div><div class="stage-sub">Schema check, API compatibility</div><div class="stage-time" id="st-5"></div></div></div>
+    <div id="si-6"  class="stage-item"><div class="stage-dot" id="sd-6">6</div><div class="stage-info"><div class="stage-name" id="sn-6">Visual Synthesis</div><div class="stage-sub">RunwayML gen4_image frames</div><div class="stage-time" id="st-6"></div></div></div>
+    <div id="si-6a" class="stage-item"><div class="stage-dot" id="sd-6a">6a</div><div class="stage-info"><div class="stage-name" id="sn-6a">VLM Validation</div><div class="stage-sub">GPT-4o Vision quality gate</div><div class="stage-time" id="st-6a"></div></div></div>
+    <div id="si-7"  class="stage-item"><div class="stage-dot" id="sd-7">7</div><div class="stage-info"><div class="stage-name" id="sn-7">Temporal Synthesis</div><div class="stage-sub">Image-to-video clip generation</div><div class="stage-time" id="st-7"></div></div></div>
+    <div id="si-8"  class="stage-item"><div class="stage-dot" id="sd-8">8</div><div class="stage-info"><div class="stage-name" id="sn-8">Non-Linear Stitching</div><div class="stage-sub">FFmpeg concat → final MP4</div><div class="stage-time" id="st-8"></div></div></div>
+    <div id="si-9"  class="stage-item" style="padding-bottom:0"><div class="stage-dot" id="sd-9">9</div><div class="stage-info"><div class="stage-name" id="sn-9">Audio Production</div><div class="stage-sub">Voiceover script + TTS mux</div><div class="stage-time" id="st-9"></div></div></div>
+  </div>
+
+</div><!-- /sidebar -->
+
+<!-- ════════════════════ MAIN PANEL ════════════════════ -->
+<div class="main-panel">
+
+  <div class="pipeline-progress" id="pp">
+    <span class="pp-label" id="pp-label">Ready</span>
+    <div class="pp-seg" id="pp-1"></div>
+    <div class="pp-seg" id="pp-2"></div>
+    <div class="pp-seg" id="pp-3"></div>
+    <div class="pp-seg" id="pp-4"></div>
+    <div class="pp-seg" id="pp-5"></div>
+    <div class="pp-seg" id="pp-6"></div>
+    <div class="pp-seg" id="pp-6a"></div>
+    <div class="pp-seg" id="pp-7"></div>
+    <div class="pp-seg" id="pp-8"></div>
+    <div class="pp-seg" id="pp-9"></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('log')">📋 Live Log <span class="tbadge" id="tb-log">0</span></div>
+    <div class="tab" onclick="switchTab('frames')">🖼️ Frames <span class="tbadge" id="tb-frames">0</span></div>
+    <div class="tab" onclick="switchTab('video')">🎬 Video <span class="tbadge" id="tb-video">0</span></div>
+    <div class="tab" onclick="switchTab('story')">📖 Storyboard</div>
+    <div class="tab" onclick="switchTab('brief')">✨ Brief</div>
+  </div>
+
+  <!-- LOG -->
+  <div class="tab-panel active" id="log-tab">
+    <div id="log-panel">
+      <div class="empty">
+        <div class="empty-ico">📡</div>
+        <div class="empty-ttl">Awaiting pipeline start</div>
+        <div class="empty-sub">Configure your campaign brief on the left and click Generate. Real-time agent activity will stream here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAMES -->
+  <div class="tab-panel" id="frames-tab">
+    <div id="frames-panel">
+      <div class="frames-grid" id="frames-grid">
+        <div class="empty" style="grid-column:1/-1">
+          <div class="empty-ico">🎨</div>
+          <div class="empty-ttl">No frames yet</div>
+          <div class="empty-sub">Generated reference frames appear here in real-time during Stage 6.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIDEO -->
+  <div class="tab-panel" id="video-tab">
+    <div id="video-panel">
+      <div class="empty" id="video-empty">
+        <div class="empty-ico">🎞️</div>
+        <div class="empty-ttl">No clips yet</div>
+        <div class="empty-sub">Video clips appear here during Stage 7. The stitched final commercial appears at the bottom.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORYBOARD -->
+  <div class="tab-panel" id="story-tab">
+    <div id="story-panel">
+      <div class="empty" id="story-empty">
+        <div class="empty-ico">📖</div>
+        <div class="empty-ttl">Storyboard not yet generated</div>
+        <div class="empty-sub">The full shot breakdown appears here after Stage 3 completes.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BRIEF -->
+  <div class="tab-panel" id="brief-tab">
+    <div id="brief-panel">
+      <div class="empty" id="brief-empty">
+        <div class="empty-ico">✨</div>
+        <div class="empty-ttl">Enriched brief not yet generated</div>
+        <div class="empty-sub">The AI-generated creative manifesto appears here after Stages 1 &amp; 2 complete.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main-panel -->
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let ws=null, imageDataUri=null;
+let logCnt=0, framesCnt=0, videoCnt=0;
+let stageTimers={}, activeStage=null;
+let clipsInited=false, briefRendered=false;
+let sessionId=null, running=false;
+
+// Credit cost per second for each video model
+const VID_COST={
+  'gen4_turbo':5,'gen4.5':12,'seedance2':36,
+  'veo3':40,'veo3.1':30,'veo3.1_fast':12
+};
+// Credit cost per frame for each image model
+const IMG_COST={
+  'gen4_image':6,'gen4_image_turbo':2,'gemini_2.5_flash':5
+};
+
+function getVideoModel(){return document.getElementById('video-model-sel')?.value||'gen4_turbo';}
+function getImageModel(){return document.getElementById('image-model-sel')?.value||'gen4_image';}
+
+// ── Cost estimator ────────────────────────────────────────────────────────
+function updateCost(){
+  const dur=parseInt(document.getElementById('duration').value);
+  const shots=Math.max(2,Math.round(dur/5));
+  const vidModel=getVideoModel(), imgModel=getImageModel();
+  const imgC=shots*(IMG_COST[imgModel]||6);
+  const vidC=dur*(VID_COST[vidModel]||5);
+  const tot=imgC+vidC;
+  document.getElementById('ec-img').textContent=`~${imgC}cr ($${(imgC*.01).toFixed(2)})`;
+  document.getElementById('ec-vid').textContent=`~${vidC}cr ($${(vidC*.01).toFixed(2)})`;
+  document.getElementById('ec-total').textContent=`~${tot}cr ($${(tot*.01).toFixed(2)})`;
+  document.getElementById('stat-shots').textContent=shots;
+  document.getElementById('stat-dur').textContent=dur+'s';
+  document.getElementById('stat-cost').textContent='$'+(tot*.01).toFixed(2);
+}
+
+function onModelChange(){ updateCost(); }
+
+function onDurChange(v){
+  document.getElementById('dur-val').textContent=v;
+  updateCost();
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────
+document.getElementById('img-input').addEventListener('change',async function(e){
+  const file=e.target.files[0];if(!file)return;
+  const fd=new FormData();fd.append('file',file);
+  try{
+    const r=await fetch('/api/upload-image',{method:'POST',body:fd});
+    if(!r.ok)throw new Error(await r.text());
+    const d=await r.json();
+    imageDataUri=d.data_uri;
+    const p=document.getElementById('up-preview');
+    p.src=imageDataUri;p.style.display='block';
+    document.getElementById('up-content').style.display='none';
+    document.getElementById('up-clear').style.display='block';
+    document.getElementById('upload-wrap').classList.add('has-img');
+    toast(`Reference image loaded (${(d.size/1024).toFixed(0)}KB)`,'success');
+  }catch(e){toast('Upload failed: '+e.message,'error');}
+});
+
+function clearImage(ev){
+  ev.preventDefault();ev.stopPropagation();
+  imageDataUri=null;
+  document.getElementById('up-preview').style.display='none';
+  document.getElementById('up-content').style.display='block';
+  document.getElementById('up-clear').style.display='none';
+  document.getElementById('upload-wrap').classList.remove('has-img');
+  document.getElementById('img-input').value='';
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+function switchTab(name){
+  const names=['log','frames','video','story','brief'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id===name+'-tab'));
+}
+
+// ── Stages ────────────────────────────────────────────────────────────────
+function setStage(id,status){
+  const dot=document.getElementById('sd-'+id);
+  const name=document.getElementById('sn-'+id);
+  const seg=document.getElementById('pp-'+id);
+  if(!dot)return;
+  dot.className='stage-dot '+(status||'');
+  if(name){name.className='stage-name '+(status||'');}
+  if(seg){seg.className='pp-seg '+(status==='complete'?'done':status==='running'?'active':status==='error'?'err':'');}
+  if(status==='complete')dot.textContent='✓';
+  else if(status==='error')dot.textContent='✗';
+  else dot.textContent=id;
+}
+
+function startStageTimer(id){
+  stageTimers[id]=Date.now();
+}
+
+function stopStageTimer(id){
+  if(stageTimers[id]){
+    const el=document.getElementById('st-'+id);
+    const sec=((Date.now()-stageTimers[id])/1000).toFixed(1);
+    if(el){el.textContent=sec+'s';el.classList.add('show');}
+    delete stageTimers[id];
+  }
+}
+
+// ── Log ──────────────────────────────────────────────────────────────────
+function appendLog(stage,msg,level='info'){
+  const panel=document.getElementById('log-panel');
+  const empty=panel.querySelector('.empty');if(empty)empty.remove();
+  const e=document.createElement('div');e.className='log-entry';
+  const sc=('s'+stage).replace('s6a','s6').replace('ssys','sys').replace('s9','s9');
+  e.innerHTML=`<span class="log-time">${ts()}</span><span class="log-stage ${sc}">${stage}</span><span class="log-msg ${level}">${esc(msg)}</span>`;
+  panel.appendChild(e);panel.scrollTop=panel.scrollHeight;
+  logCnt++;document.getElementById('tb-log').textContent=logCnt;
+}
+
+function ts(){return new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ── Brief ─────────────────────────────────────────────────────────────────
+function renderBrief(data){
+  if(briefRendered)return;briefRendered=true;
+  const container=document.getElementById('brief-panel');
+  const empty=document.getElementById('brief-empty');if(empty)empty.remove();
+  const g=document.createElement('div');g.className='brief-grid';
+  const fields=[
+    ['Campaign Title',data.campaign_title,'full'],
+    ['Visual Style',data.visual_style],
+    ['Lighting',data.lighting_style],
+    ['Pacing',data.pacing],
+    ['Music Mood',data.music_mood],
+    ['Target Audience',data.target_audience||data.demographic_insights],
+    ['Narrative Arc',data.narrative_arc],
+    ['Brand Safety',data.brand_safety_notes],
+  ];
+  fields.forEach(([label,val,full])=>{
+    if(!val)return;
+    const c=document.createElement('div');
+    c.className='brief-card'+(full?' style="grid-column:1/-1"':'');
+    if(full)c.style.gridColumn='1/-1';
+    c.innerHTML=`<div class="brief-label">${esc(label)}</div><div class="brief-val">${esc(val)}</div>`;
+    g.appendChild(c);
+  });
+  // Colors
+  if(data.color_palette&&data.color_palette.length){
+    const c=document.createElement('div');c.className='brief-card';
+    c.innerHTML=`<div class="brief-label">Color Palette</div><ul class="brief-list">${data.color_palette.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+    g.appendChild(c);
+  }
+  // Key scenes
+  if(data.key_scenes&&data.key_scenes.length){
+    const c=document.createElement('div');c.className='brief-card';c.style.gridColumn='1/-1';
+    c.innerHTML=`<div class="brief-label">Key Scenes</div><ul class="brief-list">${data.key_scenes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+    g.appendChild(c);
+  }
+  container.appendChild(g);
+}
+
+// ── Storyboard ───────────────────────────────────────────────────────────
+let storyShots=[];
+function renderStoryboard(shots){
+  storyShots=shots;
+  const empty=document.getElementById('story-empty');if(empty)empty.remove();
+  const container=document.getElementById('story-panel');
+  let tbl=document.getElementById('story-tbl');
+  if(!tbl){
+    tbl=document.createElement('table');tbl.id='story-tbl';tbl.className='story-tbl';
+    tbl.innerHTML=`<thead><tr><th>Shot</th><th>Function</th><th>Subject</th><th>Dur</th><th>Image</th><th>Video</th></tr></thead><tbody id="story-body"></tbody>`;
+    container.insertBefore(tbl,container.firstChild);
+  }
+  shots.forEach(s=>{
+    const existing=document.getElementById('sr-'+s.shot_id);
+    const tr=document.createElement('tr');tr.id='sr-'+s.shot_id;
+    tr.innerHTML=`
+      <td class="shot-id">${s.shot_id}</td>
+      <td>${esc(s.narrative_function||'')}<div class="prompt-preview" id="sp-${s.shot_id}"></div></td>
+      <td style="max-width:180px;font-size:.72rem">${esc((s.subject||'').substring(0,70))}</td>
+      <td style="font-weight:700;color:var(--gold)">${s.duration}s</td>
+      <td><span class="spill sp-${s.image_status||'pending'}" id="is-${s.shot_id}">${s.image_status||'pending'}</span></td>
+      <td><span class="spill sp-${s.video_status||'pending'}" id="vs-${s.shot_id}">${s.video_status||'pending'}</span></td>`;
+    const body=document.getElementById('story-body');
+    if(existing)body.replaceChild(tr,existing);
+    else body.appendChild(tr);
+  });
+}
+
+function updateShotStatus(shotId,kind,status){
+  const el=document.getElementById((kind==='img'?'is':'vs')+'-'+shotId);
+  if(el){el.className=`spill sp-${status}`;el.textContent=status;}
+}
+
+function updateShotPrompt(shotId,prompt){
+  const el=document.getElementById('sp-'+shotId);
+  if(el&&prompt)el.textContent=prompt.substring(0,70)+'…';
+}
+
+// ── Frames ────────────────────────────────────────────────────────────────
+const isPortrait=()=>['tiktok','instagram_reels'].includes(document.getElementById('platform').value);
+
+function addFramePlaceholder(shotId,func){
+  const grid=document.getElementById('frames-grid');
+  const empty=grid.querySelector('.empty');if(empty)empty.remove();
+  if(document.getElementById('fc-'+shotId))return;
+  const ac=isPortrait()?'portrait':'';
+  const card=document.createElement('div');card.className='frame-card';card.id='fc-'+shotId;
+  card.innerHTML=`
+    <div class="frame-wrap ${ac}" id="fw-${shotId}">
+      <div class="frame-ph"><div class="fspin"></div><span>Queued</span></div>
+    </div>
+    <div class="finfo">
+      <div class="fid">${shotId}</div>
+      <div class="ffunc" id="ff-${shotId}">${esc(func||'')}</div>
+      <div class="fdur" id="fd-${shotId}"></div>
+    </div>`;
+  grid.appendChild(card);
+  framesCnt++;document.getElementById('tb-frames').textContent=framesCnt;
+}
+
+function setFrameImage(shotId,src,status,prompt){
+  const wrap=document.getElementById('fw-'+shotId);
+  if(!wrap){addFramePlaceholder(shotId,'');setFrameImage(shotId,src,status,prompt);return;}
+  const bc=status==='VERIFIED'?'fb-ver':status==='generated'||status==='VERIFIED'?'fb-gen':status==='failed'?'fb-fail':'fb-pend';
+  const bl=status==='VERIFIED'?'Verified':status==='generated'?'Generated':status==='failed'?'Failed':'Pending';
+  wrap.innerHTML=`<img src="${src}" loading="lazy" onclick="openLightbox('${src}')"><div class="fov"><span class="fbadge ${bc}">${bl}</span></div>`;
+  const ff=document.getElementById('ff-'+shotId);if(ff&&prompt)ff.textContent=prompt.substring(0,55)+'…';
+}
+
+function openLightbox(src){
+  const lb=document.createElement('div');lb.className='lightbox';
+  lb.innerHTML=`<img src="${src}" alt="">`;
+  lb.onclick=()=>lb.remove();document.body.appendChild(lb);
+}
+
+// ── Video ─────────────────────────────────────────────────────────────────
+function addClip(shotId,src,duration){
+  const panel=document.getElementById('video-panel');
+  const empty=document.getElementById('video-empty');if(empty)empty.remove();
+  if(!clipsInited){
+    const h=document.createElement('div');h.className='clips-header';h.textContent='Generated Clips';
+    const g=document.createElement('div');g.className='clips-grid';g.id='clips-grid';
+    panel.insertBefore(g,panel.firstChild);panel.insertBefore(h,panel.firstChild);
+    clipsInited=true;
+  }
+  const grid=document.getElementById('clips-grid');
+  const card=document.createElement('div');card.className='clip-card';
+  card.innerHTML=`
+    <video src="${src}" controls muted loop preload="metadata"></video>
+    <div class="clip-info">
+      <span class="clip-id">${shotId}</span>
+      <span class="clip-dur">${duration}s</span>
+      <a href="${src}" download="${shotId}.mp4" class="clip-dl">↓ Save</a>
+    </div>`;
+  grid.appendChild(card);
+  videoCnt++;document.getElementById('tb-video').textContent=videoCnt;
+}
+
+function showFinalVideo(src,title,duration,costUsd,clips,audioSrc){
+  const panel=document.getElementById('video-panel');
+  let fs=document.getElementById('final-section');if(fs)fs.remove();
+  fs=document.createElement('div');fs.className='final-section';fs.id='final-section';
+  const hasAudio=audioSrc?true:false;
+  fs.innerHTML=`
+    <div class="final-hdr">
+      <div class="final-title">${hasAudio?'🎵':'🏆'} <span>${esc(title)}${hasAudio?' (with Voiceover)':''}</span></div>
+      <a href="${src}" download="final_campaign.mp4" class="dl-btn">↓ Download HD</a>
+    </div>
+    <video src="${src}" controls autoplay loop></video>
+    <div class="final-meta">
+      <span>⏱ ${duration}s runtime</span>
+      <span>🎬 ${clips} clips stitched</span>
+      <span>💰 $${costUsd} total spend</span>
+      ${hasAudio?'<span>🔊 Voiceover included</span>':''}
+    </div>`;
+  panel.appendChild(fs);
+  switchTab('video');
+}
+
+function showAudioSection(audioSrc,script,voice,musicSrc,hasMusic){
+  const panel=document.getElementById('video-panel');
+  let as=document.getElementById('audio-section');if(as)as.remove();
+  as=document.createElement('div');as.className='audio-section';as.id='audio-section';
+
+  const musicRow = hasMusic && musicSrc ? `
+    <div class="audio-hdr" style="margin-top:10px">
+      <div class="audio-title">🎵 Background Music — RunwayML SFX</div>
+      <a href="${musicSrc}" download="music.mp3" class="dl-btn" style="font-size:.72rem;padding:5px 12px">↓ MP3</a>
+    </div>
+    <audio src="${musicSrc}" controls style="width:100%;margin-top:6px"></audio>
+  ` : '';
+
+  as.innerHTML=`
+    <div class="audio-hdr">
+      <div class="audio-title">🎙️ RunwayML TTS Voiceover — ${esc(voice)}</div>
+      <a href="${audioSrc}" download="voiceover.mp3" class="dl-btn" style="font-size:.72rem;padding:5px 12px">↓ MP3</a>
+    </div>
+    <audio src="${audioSrc}" controls style="width:100%;margin-top:6px"></audio>
+    ${musicRow}
+    ${script?`<div class="script-label">Voiceover Script</div><div class="script-box">${esc(script)}</div>`:''}
+  `;
+  panel.appendChild(as);
+}
+
+// ── Progress bar ─────────────────────────────────────────────────────────
+const stageOrder=['1','2','3','4','5','6','6a','7','8','9'];
+let completedStages=new Set();
+function updateProgressBar(){
+  const total=stageOrder.length;
+  const done=completedStages.size;
+  document.getElementById('pp-label').textContent=
+    running?`${done}/${total}`:(done===total?'Done':'Ready');
+}
+
+// ── Pipeline ──────────────────────────────────────────────────────────────
+async function startPipeline(){
+  const prompt=document.getElementById('prompt').value.trim();
+  if(!prompt){toast('Please enter an advertising concept','error');return;}
+  if(running){toast('Pipeline already running','warning');return;}
+
+  // Reset
+  logCnt=0;framesCnt=0;videoCnt=0;clipsInited=false;briefRendered=false;
+  storyShots=[];completedStages=new Set();running=true;
+  document.getElementById('tb-log').textContent='0';
+  document.getElementById('tb-frames').textContent='0';
+  document.getElementById('tb-video').textContent='0';
+  document.getElementById('log-panel').innerHTML='';
+  document.getElementById('frames-grid').innerHTML='';
+  document.getElementById('video-panel').innerHTML='<div class="empty" id="video-empty"><div class="empty-ico">🎞️</div><div class="empty-ttl">No clips yet</div><div class="empty-sub">Video clips appear here during Stage 7. The stitched final commercial (with voiceover) appears at the bottom after Stage 9.</div></div>';
+  document.getElementById('story-panel').innerHTML='<div class="empty" id="story-empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Generating storyboard...</div></div>';
+  document.getElementById('brief-panel').innerHTML='<div class="empty" id="brief-empty"><div class="empty-ico">✨</div><div class="empty-ttl">Generating creative brief...</div></div>';
+  document.getElementById('ec-live').textContent='$0.00';
+  stageOrder.forEach(id=>setStage(id,''));
+  updateProgressBar();
+
+  const btn=document.getElementById('gen-btn');
+  btn.disabled=true;
+  document.getElementById('btn-ico').textContent='⟳';
+  document.getElementById('btn-txt').textContent='Generating...';
+  document.getElementById('cancel-btn').style.display='block';
+
+  const sid=document.getElementById('session-id-badge');
+  sid.style.display='none';
+
+  const platform=document.getElementById('platform').value;
+  const duration=parseInt(document.getElementById('duration').value);
+
+  try{
+    const r=await fetch('/api/sessions',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        prompt,image_data_uri:imageDataUri,platform,
+        quality_mode:'preview',
+        total_duration:duration,
+        video_model:getVideoModel(),
+        image_model:getImageModel()
+      })
+    });
+    if(!r.ok)throw new Error('Failed to start session: '+await r.text());
+    const {session_id}=await r.json();
+    sessionId=session_id;
+    sid.textContent='Session: '+session_id;sid.style.display='block';
+    appendLog('sys',`Session ${session_id} created — pipeline starting...`,'info');
+    connectWS(session_id,btn);
+  }catch(e){
+    resetBtn(btn);toast('Error: '+e.message,'error');
+  }
+}
+
+function cancelPipeline(){
+  if(ws){ws.close();}
+  resetBtn(document.getElementById('gen-btn'));
+  appendLog('sys','Pipeline cancelled by user','warning');
+  running=false;
+}
+
+function resetBtn(btn){
+  btn.disabled=false;
+  document.getElementById('btn-ico').textContent='🚀';
+  document.getElementById('btn-txt').textContent='Generate Ad Campaign';
+  document.getElementById('cancel-btn').style.display='none';
+  running=false;
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────
+function connectWS(sid,btn){
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(`${proto}//${location.host}/api/ws/${sid}`);
+
+  ws.onmessage=e=>handleMsg(JSON.parse(e.data),btn);
+  ws.onerror=()=>{toast('WebSocket error','error');resetBtn(btn);};
+  ws.onclose=()=>{if(running)appendLog('sys','Connection closed','info');};
+}
+
+function handleMsg(msg,btn){
+  switch(msg.type){
+
+    case 'stage_start':
+      setStage(msg.stage_id,'running');
+      startStageTimer(msg.stage_id);
+      activeStage=msg.stage_id;
+      document.getElementById('pp-label').textContent='Stage '+msg.stage_id;
+      appendLog(msg.stage_id,`Started: ${msg.stage_name}`,'info');
+      break;
+
+    case 'stage_complete':
+      setStage(msg.stage_id,'complete');
+      stopStageTimer(msg.stage_id);
+      completedStages.add(msg.stage_id);
+      updateProgressBar();
+      appendLog(msg.stage_id,`Complete: ${msg.stage_name}`,'success');
+      break;
+
+    case 'stage_error':
+      setStage(msg.stage_id,'error');
+      stopStageTimer(msg.stage_id);
+      appendLog(msg.stage_id,`Error in ${msg.stage_name}: ${msg.message}`,'error');
+      toast('Stage '+msg.stage_id+' failed','error');
+      break;
+
+    case 'log':
+      appendLog(msg.stage||'sys',msg.message,msg.level||'info');
+      break;
+
+    case 'stage_data':
+      if(msg.stage==='3'&&msg.data?.storyboard){
+        const shots=msg.data.storyboard.map(s=>({
+          shot_id:s.shot_id,narrative_function:s.function||s.narrative_function,
+          subject:s.subject||'',duration:s.duration,image_status:'pending',video_status:'pending'
+        }));
+        renderStoryboard(shots);
+        shots.forEach(s=>addFramePlaceholder(s.shot_id,s.narrative_function));
+      }
+      if((msg.stage==='2'||msg.stage==='1')&&msg.data){
+        // Merge brief data incrementally
+        try{renderBrief(msg.data);}catch(e){}
+      }
+      break;
+
+    case 'image_ready':
+      setFrameImage(msg.shot_id,msg.src,msg.status,msg.prompt);
+      updateShotStatus(msg.shot_id,'img',msg.status);
+      updateShotPrompt(msg.shot_id,msg.prompt);
+      if(msg.cost_usd!=null)document.getElementById('ec-live').textContent='$'+msg.cost_usd.toFixed(2);
+      if(framesCnt===1)switchTab('frames');
+      break;
+
+    case 'image_validated':
+      setFrameImage(msg.shot_id,
+        document.querySelector(`#fw-${msg.shot_id} img`)?.src||'',
+        msg.verdict,'');
+      updateShotStatus(msg.shot_id,'img',msg.verdict);
+      break;
+
+    case 'video_ready':
+      addClip(msg.shot_id,msg.src,msg.duration);
+      updateShotStatus(msg.shot_id,'vid','complete');
+      if(msg.cost_usd!=null)document.getElementById('ec-live').textContent='$'+msg.cost_usd.toFixed(2);
+      break;
+
+    case 'audio_ready':
+      showAudioSection(msg.audio_src, msg.script, msg.voice||'Maya', msg.music_src, msg.has_music);
+      // Update final video section if it exists to show the audio version
+      if(msg.audio_video_src){
+        const fv=document.getElementById('final-section');
+        if(fv){
+          const vid=fv.querySelector('video');
+          if(vid){vid.src=msg.audio_video_src;vid.load();}
+          const dl=fv.querySelector('.dl-btn');
+          if(dl){dl.href=msg.audio_video_src;}
+          const title=fv.querySelector('.final-title');
+          if(title&&!title.textContent.includes('Voiceover')){
+            title.innerHTML='🎵 <span>'+title.querySelector('span').textContent+' (with Voiceover)</span>';
+          }
+        } else {
+          // final section not yet shown, will be updated when pipeline_complete arrives
+        }
+      }
+      appendLog('9','Voiceover audio ready — mixed into final video','success');
+      toast('Voiceover generated and mixed into final video 🎙️','success');
+      break;
+
+    case 'final_video_ready':
+      // Intermediate event when stitching completes (before audio)
+      appendLog('8','Video assembled — awaiting audio mux...','info');
+      break;
+
+    case 'vlm_summary':
+      appendLog('6a',`VLM complete: ${msg.verified}/${msg.total} verified, ${msg.failed} failed`,'info');
+      break;
+
+    case 'pipeline_complete':
+      resetBtn(btn);
+      if(msg.final_video){
+        const clipCount=msg.individual_clips?.length||videoCnt;
+        showFinalVideo(
+          msg.final_video,
+          msg.campaign_title||'Ad Campaign',
+          msg.total_duration,
+          msg.total_cost_usd?.toFixed(2)||'?',
+          clipCount,
+          msg.audio_src||null
+        );
+      }
+      if(msg.total_cost_usd!=null)document.getElementById('ec-live').textContent='$'+msg.total_cost_usd.toFixed(2);
+      document.getElementById('pp-label').textContent='Done!';
+      // Show voiceover script if provided
+      if(msg.voiceover_script&&!document.getElementById('audio-section')){
+        showAudioSection(msg.audio_src, msg.voiceover_script||'', 'Maya', null, false);
+      }
+      toast(`Done! ${msg.total_duration}s commercial generated — $${(msg.total_cost_usd||0).toFixed(2)}`,'success');
+      appendLog('sys',`Pipeline complete — ${msg.total_duration}s runtime, $${(msg.total_cost_usd||0).toFixed(2)} spend`,'success');
+      break;
+
+    case 'pipeline_error':
+      resetBtn(btn);
+      toast('Pipeline error: '+msg.message,'error');
+      appendLog('sys','Pipeline error: '+msg.message,'error');
+      if(msg.detail)console.error(msg.detail);
+      break;
+
+    case 'done':
+      if(ws)ws.close();
+      break;
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg,type='info'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='show '+(type||'');
+  clearTimeout(t._tid);t._tid=setTimeout(()=>t.className='',3500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+updateCost();
+</script>
+</body>
+</html>

@@ -2,6 +2,12 @@
 
 AdForge is a **FastAPI** application that turns a **creative brief** (text plus optional reference image) into a **multi-shot advertisement video** with voiceover, music, ambient sound, and a **professional closing promo card**. It orchestrates **OpenAI** models for planning and copy, **RunwayML** for images, video, and audio (via ElevenLabs-backed endpoints), and **FFmpeg** for assembly, transitions, and muxing.
 
+## Generated advertisement demo
+
+![AdForge generated advertisement](docs/media/adforge-demo.gif)
+
+A looping preview of the complete generated advertisement (GIF playback has no audio).
+
 ---
 
 ## Features
@@ -10,7 +16,7 @@ AdForge is a **FastAPI** application that turns a **creative brief** (text plus 
 - **Platforms**: aspect ratios for YouTube, Reels, TikTok, LinkedIn, Twitter, Instagram square (`pipeline/state.py`).
 - **Quality modes**: preview vs higher-quality video model defaults.
 - **Checkpoints**: fingerprint-based resume and reuse of prior sessions under `output/`.
-- **Web UI**: `static/index.html` with WebSocket progress.
+- **Web UI**: React frontend in `frontend/` with WebSocket progress and interactive stage reviews.
 - **REST API**: session creation, image upload, OpenAPI at `/docs`.
 
 ---
@@ -60,6 +66,18 @@ Commit **`.env.example`** only; keep **`.env`** private (do not push secrets).
 
 ## Run the server
 
+Build the frontend first (Node.js and npm required):
+
+```powershell
+cd frontend
+npm ci
+npm run build
+cd ..
+```
+
+For frontend development, run `npm run dev` from `frontend/`. Its API proxy defaults to port **8899**; set `VITE_API_PROXY=http://127.0.0.1:8000` in `frontend/.env` when using the server command below.
+
+
 ```powershell
 python -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload
 ```
@@ -77,7 +95,7 @@ On some Windows setups, ports **8000** or **8001** may return **WinError 10013**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/` | Web UI (`static/index.html`) |
+| `GET` | `/` | React web UI (`static/dist/index.html`) |
 | `POST` | `/api/upload-image` | Upload image → `data_uri` |
 | `POST` | `/api/sessions` | Start pipeline; body matches `GenerateRequest` |
 | `GET` | `/api/sessions/{id}/status` | `pending` / `running` / `complete` / `error` |
@@ -110,7 +128,8 @@ Slow end-to-end Runway tests live in `tests/test_08_e2e_pipeline.py`. Integratio
 | `pipeline/runway_client.py` | Runway HTTP client |
 | `pipeline/end_card.py` | Promo clip animation, crossfade, fallbacks |
 | `pipeline/agents/*.py` | One module per stage (+ `end_card_gen.py`) |
-| `static/` | Frontend |
+| `frontend/` | React source and Vite build configuration |
+| `static/dist/` | Generated frontend bundle (build locally) |
 | `output/` | Per-session artifacts (created at runtime) |
 
 ---

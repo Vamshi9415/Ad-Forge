@@ -192,11 +192,10 @@ def test_audio_gen_exports():
 
 def test_static_html_exists():
     root = Path(__file__).parent.parent
-    html = root / "static" / "index.html"
-    assert html.exists(), "static/index.html not found"
-    content = html.read_text(encoding="utf-8")
-    assert "AdForge" in content, "index.html missing 'AdForge' title"
-    assert "stage_9" in content or "sd-9" in content, (
-        "index.html missing Stage 9 DOM element"
+    html = root / "static" / "dist" / "index.html"
+    assert html.exists(), (
+        "static/dist/index.html not found — run `npm run build` in `frontend/`"
     )
-    assert "audio_ready" in content, "index.html missing audio_ready handler"
+    content = html.read_text(encoding="utf-8")
+    assert "AdForge" in content or "root" in content, "Vite index shell unexpected"
+    assert "script" in content.lower(), "index.html should load the app script bundle"

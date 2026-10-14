@@ -1,13 +1,16 @@
 import asyncio
 import base64
 import json
-import os
+import logging
+import traceback
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -16,18 +19,59 @@ load_dotenv(override=True)  # .env always takes precedence over shell env vars
 
 from pipeline.orchestrator import PipelineOrchestrator
 
-app = FastAPI(title="AdForge - Generative Advertising Pipeline")
+log = logging.getLogger("adforge")
 
-# Resolve to an absolute path so all downstream paths (concat.txt, etc.) are
-# absolute — avoids FFmpeg doubling the path when it resolves relative entries
-# in concat.txt relative to the concat file's own directory.
-OUTPUT_DIR = Path(__file__).parent / "output"
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
-STATIC_DIR = Path("static")
+STATIC_DIR = BASE_DIR / "static"
+FRONTEND_DIST = STATIC_DIR / "dist"
 
-app.mount("/output", StaticFiles(directory="output"), name="output")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    index = FRONTEND_DIST / "index.html"
+    assets = FRONTEND_DIST / "assets"
+    if not index.is_file():
+        log.warning(
+            "Frontend not built: missing %s — run `npm run build` in `frontend/`",
+            index,
+        )
+    elif not assets.is_dir() or not any(assets.iterdir()):
+        log.warning(
+            "Frontend build incomplete: %s missing or empty — page may load without JS/CSS",
+            assets,
+        )
+    yield
+
+
+app = FastAPI(title="AdForge - Generative Advertising Pipeline", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    # Any localhost / 127.0.0.1 port (5173 Vite, 8000/8899 Uvicorn, etc.)
+    allow_origin_regex=r"https?://(127\.0\.0\.1|localhost)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
+
+_vite_assets = FRONTEND_DIST / "assets"
+if _vite_assets.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_vite_assets.resolve())), name="vite_assets")
 
 sessions: dict = {}
+
+
+@app.middleware("http")
+async def log_unhandled_exceptions(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception:
+        log.exception("Unhandled exception for %s %s", request.method, request.url.path)
+        raise
 
 
 class GenerateRequest(BaseModel):
@@ -38,11 +82,51 @@ class GenerateRequest(BaseModel):
     total_duration: int = 30
     video_model: Optional[str] = None   # explicit override; falls back to quality_mode mapping
     image_model: Optional[str] = None   # explicit override; defaults to gen4_image
+    interactive: bool = True            # pause for user approval after key stages
 
 
 @app.get("/")
 async def root():
-    return FileResponse(STATIC_DIR / "index.html")
+    index = (FRONTEND_DIST / "index.html").resolve()
+    if not index.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend not built. Run `npm run build` in the `frontend/` directory.",
+        )
+    try:
+        return FileResponse(
+            path=str(index),
+            media_type="text/html",
+            filename="index.html",
+        )
+    except OSError as e:
+        log.exception("Failed to read %s", index)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not serve frontend index: {e}",
+        ) from e
+
+
+@app.get("/health")
+async def health():
+    """Lightweight probe; does not touch Runway or OpenAI."""
+    ok = (FRONTEND_DIST / "index.html").is_file()
+    return {"status": "ok", "frontend_index": ok, "dist": str(FRONTEND_DIST)}
+
+
+@app.get("/api/debug/config")
+async def debug_config():
+    """Optional: confirm paths when ADFORGE_DEBUG=1 (avoid leaking secrets)."""
+    import os
+
+    if os.environ.get("ADFORGE_DEBUG", "").strip() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="Not found")
+    return {
+        "base_dir": str(BASE_DIR),
+        "frontend_dist": str(FRONTEND_DIST.resolve()),
+        "index_exists": (FRONTEND_DIST / "index.html").is_file(),
+        "assets_mounted": _vite_assets.is_dir(),
+    }
 
 
 @app.post("/api/upload-image")
@@ -64,7 +148,13 @@ async def create_session(request: GenerateRequest):
     (session_dir / "videos").mkdir(parents=True, exist_ok=True)
 
     queue: asyncio.Queue = asyncio.Queue()
-    sessions[session_id] = {"status": "pending", "queue": queue}
+    approval_event = asyncio.Event()
+    sessions[session_id] = {
+        "status": "pending",
+        "queue": queue,
+        "approval_event": approval_event,
+        "approval_response": None,
+    }
 
     asyncio.create_task(_run_pipeline(session_id, request, session_dir, queue))
     return {"session_id": session_id}
@@ -82,6 +172,17 @@ async def _run_pipeline(
     try:
         sessions[session_id]["status"] = "running"
         orchestrator = PipelineOrchestrator(session_id, session_dir, send)
+
+        async def wait_for_approval() -> dict:
+            """Block pipeline until user approves/edits via WebSocket."""
+            session = sessions[session_id]
+            session["approval_event"].clear()
+            session["approval_response"] = None
+            await session["approval_event"].wait()
+            return session["approval_response"] or {"action": "approve"}
+
+        orchestrator.wait_for_approval = wait_for_approval
+
         result = await orchestrator.run(
             prompt=request.prompt,
             image_data_uri=request.image_data_uri,
@@ -90,11 +191,12 @@ async def _run_pipeline(
             total_duration=request.total_duration,
             video_model=request.video_model,
             image_model=request.image_model,
+            interactive=request.interactive,
         )
         sessions[session_id]["status"] = "complete"
         await queue.put({"type": "pipeline_complete", **result})
     except Exception as exc:
-        import traceback
+        log.exception("Pipeline session %s failed", session_id)
         sessions[session_id]["status"] = "error"
         await queue.put(
             {
@@ -116,22 +218,49 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.close()
         return
 
-    queue = sessions[session_id]["queue"]
+    session = sessions[session_id]
+    queue = session["queue"]
+
+    async def sender():
+        """Push pipeline events to the client."""
+        try:
+            while True:
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=30)
+                except asyncio.TimeoutError:
+                    await websocket.send_json({"type": "ping"})
+                    continue
+
+                if msg is None:
+                    await websocket.send_json({"type": "done"})
+                    return
+
+                await websocket.send_json(msg)
+        except (WebSocketDisconnect, Exception):
+            pass
+
+    async def receiver():
+        """Listen for client messages (approval responses)."""
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                try:
+                    msg = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                if msg.get("type") == "approval_response":
+                    session["approval_response"] = msg
+                    session["approval_event"].set()
+                elif msg.get("type") == "skip_all_reviews":
+                    session["approval_response"] = {"action": "skip_all"}
+                    session["approval_event"].set()
+        except (WebSocketDisconnect, Exception):
+            pass
 
     try:
-        while True:
-            try:
-                msg = await asyncio.wait_for(queue.get(), timeout=30)
-            except asyncio.TimeoutError:
-                await websocket.send_json({"type": "ping"})
-                continue
-
-            if msg is None:
-                await websocket.send_json({"type": "done"})
-                break
-
-            await websocket.send_json(msg)
-    except (WebSocketDisconnect, Exception):
+        await asyncio.gather(sender(), receiver())
+    except Exception:
         pass
 
 

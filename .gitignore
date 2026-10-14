@@ -54,3 +54,8 @@ output/
 
 # Optional nested checkout / Runway plugin skills bundle (has its own .git)
 skills/
+
+# Frontend dependencies and generated bundles
+node_modules/
+static/dist/
+frontend/.env

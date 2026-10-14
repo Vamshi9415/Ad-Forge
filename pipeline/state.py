@@ -66,6 +66,10 @@ class PipelineState:
     # Silent promo still appended after stitch (stage 8); audio mux extends to match.
     playback_padding_seconds: int = 0
 
+    # Interactive mode: pause for user approval after key stages
+    interactive: bool = True
+    dub_languages: List[str] = field(default_factory=list)
+
 
 PLATFORM_RATIOS: Dict[str, str] = {
     "youtube": "1280:720",
@@ -78,6 +82,7 @@ PLATFORM_RATIOS: Dict[str, str] = {
 
 CREDIT_COST: Dict[str, int] = {
     # ── Video models (credits per second) ────────────────────────────────
+    "gen3a_turbo":  5,   # Gen-3 Alpha Turbo, image_to_video, $0.05/s (Runway API pricing)
     "gen4_turbo":   5,   # Fast image-driven, $0.05/s
     "gen4.5":      12,   # High quality general purpose, $0.12/s
     "seedance2":   36,   # Reference image+video, up to 15s, $0.36/s
@@ -95,6 +100,7 @@ CREDIT_COST: Dict[str, int] = {
 
 # Video model constraints: allowed durations (None = any duration)
 VIDEO_MODEL_DURATIONS: Dict[str, list] = {
+    "gen3a_turbo":  [5, 10],
     "gen4_turbo":   [5, 10],
     "gen4.5":       [5, 10],
     "seedance2":    [5, 8, 10, 15],
@@ -104,6 +110,7 @@ VIDEO_MODEL_DURATIONS: Dict[str, list] = {
 }
 
 VIDEO_MODEL_INFO: Dict[str, Dict] = {
+    "gen3a_turbo":  {"label": "Gen3 Alpha Turbo", "cost_label": "$0.05/s", "tag": "🧬 Gen-3"},
     "gen4_turbo":   {"label": "Gen4 Turbo",    "cost_label": "$0.05/s", "tag": "⚡ Fast"},
     "gen4.5":       {"label": "Gen4.5",         "cost_label": "$0.12/s", "tag": "🎬 Quality"},
     "seedance2":    {"label": "Seedance 2",     "cost_label": "$0.36/s", "tag": "🎭 Long-form"},

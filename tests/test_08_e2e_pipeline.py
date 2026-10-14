@@ -723,7 +723,7 @@ def test_d_credit_cost_constants():
     """CREDIT_COST must include all models used by the pipeline."""
     from pipeline.state import CREDIT_COST
     required = {
-        "gen4_turbo", "gen4.5", "gen4_image",
+        "gen3a_turbo", "gen4_turbo", "gen4.5", "gen4_image",
         "eleven_multilingual_v2", "eleven_text_to_sound_v2",
     }
     missing = required - set(CREDIT_COST.keys())

@@ -1,4 +1,4 @@
-"""Main pipeline orchestrator — coordinates all 9 stages."""
+"""Main pipeline orchestrator — coordinates all 9 stages with optional interactive approval gates."""
 
 import asyncio
 import glob as _glob
@@ -15,6 +15,8 @@ from pipeline.agents import (
     ingestion, enhancer, story, prompt_gen, validator,
     image_synth, vlm_validator, video_gen, audio_gen, end_card_gen,
 )
+
+APPROVAL_STAGES = {"2", "3", "4", "6a"}
 
 
 def _find_ffmpeg() -> Optional[str]:
@@ -52,11 +54,175 @@ def _find_ffmpeg() -> Optional[str]:
 class PipelineOrchestrator:
     def __init__(self, session_id: str, session_dir: Path, send: Callable):
         self.session_id  = session_id
-        # Force absolute path — defends against callers passing relative paths
-        # (e.g. server.py being stale or tests using relative dirs). Without
-        # this, FFmpeg's concat demuxer doubles relative paths in concat.txt.
         self.session_dir = Path(session_dir).resolve()
         self.send        = send
+        self.wait_for_approval: Optional[Callable] = None
+        self._skip_all_reviews = False
+
+    # ── Approval gate ──────────────────────────────────────────────────
+
+    async def _approval_gate(
+        self,
+        stage_id: str,
+        stage_name: str,
+        state: PipelineState,
+    ) -> dict:
+        """Pause pipeline and wait for user to review, edit, or approve stage output.
+        Returns the user's response dict with action and optional edits.
+        """
+        if not state.interactive or self._skip_all_reviews or not self.wait_for_approval:
+            return {"action": "approve"}
+
+        review_data = self._build_review_data(stage_id, state)
+
+        await self.send({
+            "type": "approval_request",
+            "stage_id": stage_id,
+            "stage_name": stage_name,
+            "review_data": review_data,
+        })
+
+        await self.send({
+            "type": "log", "stage": stage_id,
+            "message": f"Waiting for your review of {stage_name}...",
+            "level": "info",
+        })
+
+        print(f"[orchestrator] Stage {stage_id} awaiting approval...")
+        response = await self.wait_for_approval()
+
+        action = response.get("action", "approve")
+        if action == "skip_all":
+            self._skip_all_reviews = True
+            await self.send({
+                "type": "log", "stage": "sys",
+                "message": "Auto-approve enabled — remaining stages will run without review.",
+                "level": "info",
+            })
+            return {"action": "approve"}
+
+        await self.send({
+            "type": "log", "stage": stage_id,
+            "message": f"Review complete — action: {action}",
+            "level": "success",
+        })
+
+        if action == "edit" and response.get("edits"):
+            self._apply_edits(stage_id, state, response["edits"])
+            await self.send({
+                "type": "log", "stage": stage_id,
+                "message": "User edits applied.",
+                "level": "success",
+            })
+
+        return response
+
+    def _build_review_data(self, stage_id: str, state: PipelineState) -> dict:
+        """Prepare the stage output data for the frontend review UI."""
+        if stage_id == "2":
+            b = state.enriched_brief
+            return {
+                "type": "brief",
+                "fields": {
+                    "campaign_title": b.get("campaign_title", ""),
+                    "tagline": b.get("tagline", ""),
+                    "tone": b.get("tone", b.get("emotional_tone", "")),
+                    "visual_style": b.get("visual_style", ""),
+                    "pacing": b.get("pacing", ""),
+                    "music_mood": b.get("music_mood", ""),
+                    "target_audience": b.get("target_audience", b.get("demographic_insights", "")),
+                    "narrative_arc": b.get("narrative_arc", ""),
+                    "creative_direction": b.get("creative_direction", ""),
+                    "color_grade": b.get("color_grade", ""),
+                },
+            }
+
+        if stage_id == "3":
+            return {
+                "type": "storyboard",
+                "shots": [
+                    {
+                        "shot_id": s.shot_id,
+                        "narrative_function": s.narrative_function,
+                        "duration": s.duration,
+                        "subject": s.subject,
+                        "environment": s.environment,
+                        "action": s.action,
+                        "emotional_beat": s.emotional_beat,
+                    }
+                    for s in state.storyboard
+                ],
+            }
+
+        if stage_id == "4":
+            return {
+                "type": "prompts",
+                "shots": [
+                    {
+                        "shot_id": s.shot_id,
+                        "narrative_function": s.narrative_function,
+                        "image_prompt": s.image_prompt,
+                        "motion_prompt": s.motion_prompt,
+                    }
+                    for s in state.storyboard
+                ],
+            }
+
+        if stage_id == "6a":
+            return {
+                "type": "frames",
+                "shots": [
+                    {
+                        "shot_id": s.shot_id,
+                        "narrative_function": s.narrative_function,
+                        "image_status": s.image_status,
+                        "image_src": (
+                            f"/output/{state.session_id}/images/{s.shot_id}.png"
+                            if s.image_path else None
+                        ),
+                    }
+                    for s in state.storyboard
+                ],
+            }
+
+        return {}
+
+    def _apply_edits(self, stage_id: str, state: PipelineState, edits: dict) -> None:
+        """Merge user edits into pipeline state."""
+        if stage_id == "2" and edits.get("fields"):
+            for key, val in edits["fields"].items():
+                if val is not None and str(val).strip():
+                    state.enriched_brief[key] = str(val).strip()
+
+        elif stage_id == "3" and edits.get("shots"):
+            shot_map = {s.shot_id: s for s in state.storyboard}
+            for edited in edits["shots"]:
+                sid = edited.get("shot_id")
+                if sid and sid in shot_map:
+                    s = shot_map[sid]
+                    if "narrative_function" in edited:
+                        s.narrative_function = edited["narrative_function"]
+                    if "duration" in edited:
+                        s.duration = int(edited["duration"])
+                    if "subject" in edited:
+                        s.subject = edited["subject"]
+                    if "environment" in edited:
+                        s.environment = edited["environment"]
+                    if "action" in edited:
+                        s.action = edited["action"]
+
+        elif stage_id == "4" and edits.get("shots"):
+            shot_map = {s.shot_id: s for s in state.storyboard}
+            for edited in edits["shots"]:
+                sid = edited.get("shot_id")
+                if sid and sid in shot_map:
+                    s = shot_map[sid]
+                    if "image_prompt" in edited:
+                        s.image_prompt = edited["image_prompt"]
+                    if "motion_prompt" in edited:
+                        s.motion_prompt = edited["motion_prompt"]
+
+    # ── Pipeline result builder ────────────────────────────────────────
 
     def _build_pipeline_result(
         self,
@@ -98,6 +264,8 @@ class PipelineOrchestrator:
         })
         await self._stage_done(stage_id, stage_name)
 
+    # ── Main run ───────────────────────────────────────────────────────
+
     async def run(
         self,
         prompt: str,
@@ -107,15 +275,13 @@ class PipelineOrchestrator:
         total_duration: int,
         video_model: Optional[str] = None,
         image_model: Optional[str] = None,
+        interactive: bool = True,
     ) -> Dict[str, Any]:
 
-        # Resolve models: explicit selection wins, otherwise fall back to quality_mode
         resolved_video_model = video_model or (
             "gen4_turbo" if quality_mode == "preview" else "gen4.5"
         )
         resolved_image_model = image_model or "gen4_image"
-
-        # Clamp per-shot durations to what the chosen video model supports
         allowed_durations = VIDEO_MODEL_DURATIONS.get(resolved_video_model)
 
         state = PipelineState(
@@ -128,6 +294,7 @@ class PipelineOrchestrator:
             ratio=PLATFORM_RATIOS.get(platform, "1280:720"),
             video_model=resolved_video_model,
             image_model=resolved_image_model,
+            interactive=interactive,
         )
         state.enriched_brief["_allowed_durations"] = allowed_durations or []
 
@@ -194,55 +361,71 @@ class PipelineOrchestrator:
         final_path: Optional[str] = state.final_video_path
         audio_video_path: Optional[str] = state.final_audio_video_path
 
-        # Run each stage only if its index is >= start_idx (first stage to (re)execute).
+        # ── Stage 1: Intent Ingestion ──────────────────────────────────
         if ckpt.stage_index("1") >= start_idx:
             await self._stage_start("1", "Intent Ingestion")
             await ingestion.run(state, self.send)
             await self._stage_done("1", "Intent Ingestion")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "1")
 
+        # ── Stage 2: Contextual Enhancement + APPROVAL ─────────────────
         if ckpt.stage_index("2") >= start_idx:
             await self._stage_start("2", "Contextual Enhancement")
             await enhancer.run(state, self.send)
             await self._stage_done("2", "Contextual Enhancement")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "2")
 
+            await self._approval_gate("2", "Creative Brief", state)
+
+        # ── Stage 3: Narrative Sequencing + APPROVAL ───────────────────
         if ckpt.stage_index("3") >= start_idx:
             await self._stage_start("3", "Narrative Sequencing")
             await story.run(state, self.send)
             await self._stage_done("3", "Narrative Sequencing")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "3")
 
+            await self._approval_gate("3", "Storyboard", state)
+
+        # ── Stage 4: Prompt Engineering + APPROVAL ─────────────────────
         if ckpt.stage_index("4") >= start_idx:
             await self._stage_start("4", "Prompt Engineering")
             await prompt_gen.run(state, self.send)
             await self._stage_done("4", "Prompt Engineering")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "4")
 
+            await self._approval_gate("4", "Image & Motion Prompts", state)
+
+        # ── Stage 5: Structural Validation ─────────────────────────────
         if ckpt.stage_index("5") >= start_idx:
             await self._stage_start("5", "Structural Validation")
             await validator.run(state, self.send)
             await self._stage_done("5", "Structural Validation")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "5")
 
+        # ── Stage 6: Visual Synthesis ──────────────────────────────────
         if ckpt.stage_index("6") >= start_idx:
             await self._stage_start("6", "Visual Synthesis")
             await image_synth.run(state, self.session_dir, self.send)
             await self._stage_done("6", "Visual Synthesis")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "6")
 
+        # ── Stage 6a: VLM Validation + APPROVAL ───────────────────────
         if ckpt.stage_index("6a") >= start_idx:
             await self._stage_start("6a", "VLM Validation")
             await vlm_validator.run(state, self.session_dir, self.send)
             await self._stage_done("6a", "VLM Validation")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "6a")
 
+            await self._approval_gate("6a", "Generated Frames", state)
+
+        # ── Stage 7: Temporal Synthesis ────────────────────────────────
         if ckpt.stage_index("7") >= start_idx:
             await self._stage_start("7", "Temporal Synthesis")
             await video_gen.run(state, self.session_dir, self.send)
             await self._stage_done("7", "Temporal Synthesis")
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "7")
 
+        # ── Stage 8: Non-Linear Stitching ──────────────────────────────
         if ckpt.stage_index("8") >= start_idx:
             await self._stage_start("8", "Non-Linear Stitching")
             await end_card_gen.run(state, self.session_dir, self.send)
@@ -251,6 +434,7 @@ class PipelineOrchestrator:
             state.final_video_path = final_path
             ckpt.write_checkpoint(self.session_dir, fingerprint, state, "8")
 
+        # ── Stage 9: Audio Production ──────────────────────────────────
         if ckpt.stage_index("9") >= start_idx:
             await self._stage_start("9", "Audio Production")
             audio_video_path = await audio_gen.run(state, self.session_dir, self.send)
@@ -307,9 +491,6 @@ class PipelineOrchestrator:
             concat_file = self.session_dir / "concat.txt"
             with open(concat_file, "w") as f:
                 for p in video_paths:
-                    # Use absolute POSIX paths — FFmpeg resolves concat entries
-                    # relative to the concat file's own directory, so relative paths
-                    # would be doubled (e.g. output/id/output/id/videos/shot.mp4).
                     f.write(f"file '{p.resolve().as_posix()}'\n")
 
             await self.send({

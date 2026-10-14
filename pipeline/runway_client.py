@@ -230,6 +230,15 @@ async def download_bytes(url: str) -> bytes:
 
 TTS_MODEL = "eleven_multilingual_v2"
 SFX_MODEL = "eleven_text_to_sound_v2"
+STS_MODEL = "eleven_multilingual_sts_v2"
+DUB_MODEL = "eleven_voice_dubbing"
+ISOLATION_MODEL = "eleven_voice_isolation"
+
+SUPPORTED_LANGUAGES = [
+    "en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es",
+    "id", "nl", "tr", "fil", "pl", "sv", "bg", "ro", "ar", "cs",
+    "el", "fi", "hr", "ms", "sk", "da", "ta", "uk", "ru",
+]
 
 
 async def generate_tts(
@@ -304,4 +313,115 @@ async def generate_sfx(
     outputs = result.get("output", [])
     if not outputs:
         raise RuntimeError("No output URL in SFX task result")
+    return outputs[0]
+
+
+async def generate_sts(
+    api_key: str,
+    audio_url: str,
+    voice_preset: str = "Maya",
+    remove_background_noise: bool = False,
+    log: Optional[Callable] = None,
+) -> str:
+    """Convert speech to another voice using RunwayML STS (eleven_multilingual_sts_v2).
+
+    Preserves the original language, intonation, and pacing while applying
+    the target voice. Supports all 29 languages of the multilingual model.
+
+    Returns a temporary URL to the generated audio file.
+    """
+    body: Dict[str, Any] = {
+        "model": STS_MODEL,
+        "media": {"type": "audio", "uri": audio_url},
+        "voice": {"type": "runway-preset", "presetId": voice_preset},
+    }
+    if remove_background_noise:
+        body["removeBackgroundNoise"] = True
+
+    if log:
+        await log(f"Submitting STS task (voice={voice_preset})", "info")
+
+    task = await _post(api_key, "/v1/speech_to_speech", body)
+    task_id = task.get("id")
+    if not task_id:
+        raise RuntimeError(f"No task ID in STS response: {task}")
+
+    if log:
+        await log(f"STS task created: {task_id}", "info")
+
+    result = await poll_task(api_key, task_id, log=log)
+    outputs = result.get("output", [])
+    if not outputs:
+        raise RuntimeError("No output URL in STS task result")
+    return outputs[0]
+
+
+async def generate_dubbing(
+    api_key: str,
+    audio_url: str,
+    target_language: str,
+    log: Optional[Callable] = None,
+) -> str:
+    """Dub audio into another language using RunwayML (eleven_voice_dubbing).
+
+    Translates and re-synthesizes speech in the target language while
+    preserving the speaker's voice characteristics.
+
+    target_language: ISO language code (e.g. "es", "fr", "de", "hi", "ja")
+    Returns a temporary URL to the dubbed audio file.
+    """
+    body: Dict[str, Any] = {
+        "model": DUB_MODEL,
+        "audioUri": audio_url,
+        "targetLang": target_language,
+    }
+
+    if log:
+        await log(f"Submitting dubbing task (target={target_language})", "info")
+
+    task = await _post(api_key, "/v1/voice_dubbing", body)
+    task_id = task.get("id")
+    if not task_id:
+        raise RuntimeError(f"No task ID in dubbing response: {task}")
+
+    if log:
+        await log(f"Dubbing task created: {task_id}", "info")
+
+    result = await poll_task(api_key, task_id, log=log)
+    outputs = result.get("output", [])
+    if not outputs:
+        raise RuntimeError("No output URL in dubbing task result")
+    return outputs[0]
+
+
+async def generate_voice_isolation(
+    api_key: str,
+    audio_url: str,
+    log: Optional[Callable] = None,
+) -> str:
+    """Isolate voice from noisy audio using RunwayML (eleven_voice_isolation).
+
+    Removes background noise and extracts clean speech.
+    Returns a temporary URL to the cleaned audio file.
+    """
+    body: Dict[str, Any] = {
+        "model": ISOLATION_MODEL,
+        "audioUri": audio_url,
+    }
+
+    if log:
+        await log("Submitting voice isolation task", "info")
+
+    task = await _post(api_key, "/v1/voice_isolation", body)
+    task_id = task.get("id")
+    if not task_id:
+        raise RuntimeError(f"No task ID in isolation response: {task}")
+
+    if log:
+        await log(f"Voice isolation task created: {task_id}", "info")
+
+    result = await poll_task(api_key, task_id, log=log)
+    outputs = result.get("output", [])
+    if not outputs:
+        raise RuntimeError("No output URL in voice isolation task result")
     return outputs[0]

@@ -195,9 +195,10 @@ class TestCreditCost:
         assert CREDIT_COST["gen4_image"] == 6
 
     def test_video_model_costs(self):
-        """gen4_turbo = 5cr/s ($0.05), gen4.5 = 12cr/s ($0.12)."""
+        """gen4_turbo = 5cr/s ($0.05), gen4.5 = 12cr/s ($0.12), gen3a_turbo = 5cr/s."""
         assert CREDIT_COST["gen4_turbo"] == 5
         assert CREDIT_COST["gen4.5"] == 12
+        assert CREDIT_COST["gen3a_turbo"] == 5
 
     def test_cost_usd_calculation(self):
         """5s gen4_turbo video = 25 credits = $0.25."""

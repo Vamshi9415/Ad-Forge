@@ -4,10 +4,19 @@ Pipeline:
   1. GPT-4o writes a timed voiceover script + a music bed description
      AND selects the best voice for the story/audience
   2. RunwayML TTS (eleven_multilingual_v2) renders the narration → voiceover.mp3
+     Supports 29 languages: en, ja, zh, de, hi, fr, ko, pt, it, es, id, nl, tr,
+     fil, pl, sv, bg, ro, ar, cs, el, fi, hr, ms, sk, da, ta, uk, ru
   3. RunwayML SFX (eleven_text_to_sound_v2) generates a background music bed → music.mp3
   4. FFmpeg mixes both (music at 30% volume, narration at 100%, music looped to full duration)
      → mixed_audio.aac
   5. FFmpeg muxes mixed audio + final.mp4 → final_with_audio.mp4
+  6. (Optional) RunwayML Dubbing (eleven_voice_dubbing) dubs narration into additional
+     languages → voiceover_{lang}.mp3 for each target language
+
+Multilingual models:
+  eleven_multilingual_v2     — TTS: text in any of 29 languages → speech
+  eleven_multilingual_sts_v2 — STS: voice conversion preserving original language
+  eleven_voice_dubbing       — Dubbing: translates + re-voices to target language
 
 RunwayML TTS voices:
   Maya   — warm, nurturing female; luxury, beauty, wellness, emotional storytelling
@@ -25,7 +34,14 @@ from typing import Callable, Optional
 from openai import AsyncOpenAI
 
 from pipeline.state import PipelineState
-from pipeline.runway_client import generate_tts, generate_sfx, download_bytes
+from pipeline.runway_client import (
+    generate_tts,
+    generate_sfx,
+    generate_sts,
+    generate_dubbing,
+    download_bytes,
+    SUPPORTED_LANGUAGES,
+)
 
 
 def _get_openai():
@@ -144,6 +160,8 @@ async def generate_voiceover_script(state: PipelineState, emit: Callable) -> dic
                     f"Total duration: {total_dur}s\n"
                     f"Shot-by-shot story breakdown (map music dynamics to these beats):\n{shots_desc}\n\n"
                     f"Key scenes:\n{key_scenes_str}\n\n"
+                    f"Script language: {brief.get('script_language', 'en').upper()} "
+                    f"(write the voiceover script in this language; eleven_multilingual_v2 supports it natively)\n"
                     f"Cast the best voice. Write a voiceover script that fills ~{total_dur}s naturally.\n"
                     f"For music_bed_prompt: write a rich 50-70 word brief that maps the music's dynamic "
                     f"arc to the story beats above (e.g. sparse opening → swell at midpoint → resolution)."
@@ -355,6 +373,66 @@ async def synthesize_ambient_sfx(
                 "message": f"Ambient SFX: {len(paths)}/{len(ambient_prompts)} tracks ready",
                 "level": "success" if paths else "warning"})
     return paths
+
+
+# ── Multilingual dubbing ──────────────────────────────────────────────────
+async def synthesize_multilingual_dubs(
+    voiceover_url: str,
+    target_languages: list,
+    session_dir: Path,
+    emit: Callable,
+) -> dict:
+    """Dub the voiceover into multiple languages in parallel.
+
+    Uses eleven_voice_dubbing to translate and re-voice the narration while
+    preserving the speaker's characteristics.
+
+    Returns {lang_code: Path} for successfully dubbed files.
+    """
+    api_key = os.environ.get("RUNWAYML_API_SECRET", "")
+    if not api_key or not target_languages:
+        return {}
+
+    valid_langs = [l for l in target_languages if l in SUPPORTED_LANGUAGES]
+    if not valid_langs:
+        await emit({"type": "log", "stage": "9",
+                    "message": f"No valid target languages for dubbing (got: {target_languages})",
+                    "level": "warning"})
+        return {}
+
+    await emit({"type": "log", "stage": "9",
+                "message": f"Dubbing voiceover into {len(valid_langs)} languages: {', '.join(valid_langs)}",
+                "level": "info"})
+
+    async def dub_one(lang: str) -> tuple:
+        dub_path = session_dir / f"voiceover_{lang}.mp3"
+        try:
+            async def dub_log(msg, lvl="info"):
+                await emit({"type": "log", "stage": "9",
+                            "message": f"[Dub-{lang}] {msg}", "level": lvl})
+
+            dub_url = await generate_dubbing(
+                api_key=api_key,
+                audio_url=voiceover_url,
+                target_language=lang,
+                log=dub_log,
+            )
+            dub_bytes = await download_bytes(dub_url)
+            dub_path.parent.mkdir(parents=True, exist_ok=True)
+            dub_path.write_bytes(dub_bytes)
+            size_kb = dub_path.stat().st_size // 1024
+            await emit({"type": "log", "stage": "9",
+                        "message": f"Dubbed [{lang}]: {size_kb} KB",
+                        "level": "success"})
+            return (lang, dub_path)
+        except Exception as exc:
+            await emit({"type": "log", "stage": "9",
+                        "message": f"Dubbing [{lang}] failed: {str(exc)[:120]}",
+                        "level": "warning"})
+            return (lang, None)
+
+    results = await asyncio.gather(*[dub_one(lang) for lang in valid_langs])
+    return {lang: path for lang, path in results if path is not None}
 
 
 # ── FFmpeg helpers ────────────────────────────────────────────────────────
@@ -823,6 +901,31 @@ async def run(
                     "level": "error"})
         return None
 
+    # ── 2b. Multilingual dubbing (optional) ───────────────────────────────
+    dub_languages = getattr(state, "dub_languages", None) or state.enriched_brief.get("dub_languages", [])
+    dub_results = {}
+    if dub_languages and vo_path.exists():
+        vo_url = None
+        # Upload voiceover to get a URL for the dubbing API
+        try:
+            import base64
+            vo_bytes = vo_path.read_bytes()
+            vo_url = f"data:audio/mpeg;base64,{base64.b64encode(vo_bytes).decode()}"
+        except Exception as exc:
+            print(f"[audio_gen] Failed to encode voiceover for dubbing: {exc}")
+
+        if vo_url:
+            dub_results = await synthesize_multilingual_dubs(
+                voiceover_url=vo_url,
+                target_languages=dub_languages,
+                session_dir=session_dir,
+                emit=emit,
+            )
+            if dub_results:
+                await emit({"type": "log", "stage": "9",
+                            "message": f"Multilingual dubs ready: {', '.join(dub_results.keys())}",
+                            "level": "success"})
+
     # ── 3. Mix all audio layers ───────────────────────────────────────────
     ffmpeg = _find_ffmpeg()
     if not ffmpeg:
@@ -856,6 +959,10 @@ async def run(
 
     if result_path:
         n_sfx = (1 if sfx_ok else 0) + len(ambient_paths)
+        dub_sources = {
+            lang: f"/output/{state.session_id}/voiceover_{lang}.mp3"
+            for lang in dub_results.keys()
+        }
         await emit({
             "type": "audio_ready",
             "audio_video_src": f"/output/{state.session_id}/final_with_audio.mp4",
@@ -865,12 +972,15 @@ async def run(
             "voice":           voice,
             "has_music":       sfx_ok,
             "sfx_count":       n_sfx,
+            "multilingual_dubs": dub_sources if dub_sources else None,
         })
         layers = ["voiceover"]
         if sfx_ok:
             layers.append("music bed")
         if ambient_paths:
             layers.append(f"{len(ambient_paths)} ambient SFX")
+        if dub_results:
+            layers.append(f"{len(dub_results)} multilingual dubs")
         await emit({"type": "log", "stage": "9",
                     "message": f"Audio complete: {' + '.join(layers)} mixed into final video",
                     "level": "success"})
